@@ -1,0 +1,11 @@
+{
+  "send_whatsapp": true,
+  "whatsapp_number": "+919391107311",
+  "twilio_account_sid": "AC4dc9aef5700c3dfa5ae44f8b1d7266df",
+  "twilio_auth_token": "c737262bc63f57de53110db1bb924c9d",
+  "twilio_template_sid": "HXb56b25752e64f16219ad7c8efe1f983e",
+  "keywords": ["python", "remote", "internship"],
+  "email": "hari.aditya003@gmail.com",
+  "email_password": "peep ohdq cjrp lwgj",
+  "to_email": "mr.adityahari@gmail.com"  
+}
