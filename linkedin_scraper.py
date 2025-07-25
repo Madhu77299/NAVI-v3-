@@ -12,9 +12,9 @@ def scrape_jobs(keyword):
             )
         page = context.new_page()
         page.goto(f"https://www.linkedin.com/jobs/search/?keywords={keyword}&f_TPR=r86400")
-        page.wait_for_timeout(50000)
+        page.wait_for_timeout(500)
         try:
-            page.wait_for_selector("ul.jobs-search__results-list li", timeout=1000)
+            page.wait_for_selector("ul.jobs-search__results-list li", timeout=10000)
             print(f"✅ Loaded job results for '{keyword}'")
         except Exception as e:
             print(f"⚠️ Failed to scrape LinkedIn for '{keyword}':", e)
