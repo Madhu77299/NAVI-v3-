@@ -1,23 +1,26 @@
 import requests
+import json
 
-# Your extracted cookies dictionary (copy the part from your script output)
 cookies = {
-    "li_rm": "AQGmjkRuv9x_UwAAAZg8AqdIgB-09RuUXF_2lxSWnB4BbBscR5tqGgWrpzZBDW7x7FQpT5d8R_JDov76GuuSBnHovt1P9x2GhvUG9HwM8N6hpEoGxtsRG4gn",
-    "lang": "v=2&lang=en-us",
-    "JSESSIONID": '"ajax:7098330991712074144"',
-    "li_at": "AQEDAUYpGZkDM-ZtAAABmDwC_e0AAAGYYA-B7U0Any9prHutg9t5ByzAZu9OrAXVO5Xx3hdlDklAri1EF-egZh-FABExzUBatwvThSo_ALHEcjjqq-apq1xbidZCUh8H1tq9sUC3PX2ksJTKsDopcykb",
-    # ... Add the rest of the cookies here
+    "li_at": "AQEDAUYpGZkD3KTKAAABmEw7L1cAAAGYcEezV04ATLC9xTNJ_J1DbvVYoqOrodHS0dHwcQLoel5yzpKSO_JLrUPBAP6i2_QQReP1ddO30PFhTdrKMOjpuJzcLjl4d2lCI6oUucmL8-12A-8PRAcJyDW0",
+    "JSESSIONID": '"ajax:5096130520802218257"'
 }
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "X-RestLi-Protocol-Version": "2.0.0",
+    "Csrf-Token": "ajax:5096130520802218257"
 }
 
-# Test URL — for example, the LinkedIn homepage
-url = "https://www.linkedin.com/feed/"
+url = "https://www.linkedin.com/voyager/api/identity/profiles/me"
 
 response = requests.get(url, cookies=cookies, headers=headers)
 
-# Print status and a preview of the content
-print("Status Code:", response.status_code)
-print(response.text[:1000])  # First 1000 characters of the response HTML
+print("Status:", response.status_code)
+try:
+    print("JSON:", response.json())
+except:
+    print("❌ Not valid JSON. Response:")
+    print(response.text[:500])
