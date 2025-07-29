@@ -1,71 +1,50 @@
 from playwright.sync_api import sync_playwright
+import json
 
 def scrape_jobs(keyword):
-    print(f"🌐 Scraping: https://www.linkedin.com/jobs/search/?keywords={keyword}&f_TPR=r86400")
+    print(f"\n🌐 Scraping: https://www.linkedin.com/jobs/search/?keywords={keyword}&f_TPR=r86400")
+    jobs_data = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, slow_mo=100)
-        context = browser.new_context(storage_state="linkedin_state.json")
         context = browser.new_context(
-            storage_state="linkedin_state.json", # ✅ Reuse login session
+            storage_state="linkedin_state.json",
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/114.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 800}
-            )
+    )
         page = context.new_page()
-        page.goto(f"https://www.linkedin.com/jobs/search/?keywords={keyword}&f_TPR=r86400")
-        page.wait_for_timeout(500)
+        url = f"https://www.linkedin.com/jobs/search/?keywords={keyword}&f_TPR=r86400"
+        page.goto(url, timeout=60000)
+        print(f"🔗 Navigated to {url}")
+        
         try:
-            page.wait_for_selector("ul.jobs-search__results-list li", timeout=10000)
+            page.wait_for_selector("ul.jobs-search__results-list li", timeout=15000)
             print(f"✅ Loaded job results for '{keyword}'")
+            job_cards = page.query_selector_all("ul.jobs-search__results-list li")
+            for job in job_cards:
+                title = job.query_selector(".job-card-list__title")
+                company = job.query_selector(".job-card-container__company-name")
+                location = job.query_selector(".job-card-container__metadata-item")
+                link_tag = job.query_selector("a")
+                jobs_data.append({
+                    "title": title.inner_text().strip() if title else "N/A",
+                    "company": company.inner_text().strip() if company else "N/A",
+                    "location": location.inner_text().strip() if location else "N/A",
+                    "link": link_tag.get_attribute("href") if link_tag else "N/A"
+                })
         except Exception as e:
-            print(f"⚠️ Failed to scrape LinkedIn for '{keyword}':", e)
+            print(f"⚠️ Failed to load job results for '{keyword}': {e}")
+            page.screenshot(path=f"error_{keyword}.png")
+            print(f"🖼 Screenshot saved: error_{keyword}.png")
+        
         browser.close()
 
+    # Save to JSON
+    filename = f"jobs_{keyword.replace(' ', '_')}.json"
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(jobs_data, f, indent=2, ensure_ascii=False)
+        print(f"💾 Saved {len(jobs_data)} jobs to {filename}")
+
 if __name__ == "__main__":
-    for kw in ["hiring", "internship", "job opening", "software engineer"]:
+    keywords = ["hiring", "internship", "job opening", "software engineer"]
+    for kw in keywords:
         scrape_jobs(kw)
-# from playwright.sync_api import sync_playwright
-
-# def scrape_linkedin(keywords):
-#     jobs = []
-
-#     with sync_playwright() as p:
-#         browser = p.chromium.launch(headless=False, slow_mo=300)
-#         context = browser.new_context(storage_state="linkedin_state.json")
-#         page = context.new_page()
-
-#         for keyword in keywords:
-#             query = keyword.replace(" ", "%20")
-#             url = f"https://www.linkedin.com/jobs/search/?keywords={query}&f_TPR=r86400"
-#             print(f"🌐 Scraping: {url}")
-#             page.goto(url)
-
-#             # ⏳ Wait for job result list
-#             try:
-#                 page.wait_for_selector("ul.jobs-search__results-list li", timeout=20000)
-#                 cards = page.query_selector_all("ul.jobs-search__results-list li")[:5]
-
-#                 for card in cards:
-#                     title_tag = card.query_selector("h3")
-#                     company_tag = card.query_selector("h4")
-#                     link_tag = card.query_selector("a")
-
-#                     title = title_tag.inner_text().strip() if title_tag else "No title"
-#                     company = company_tag.inner_text().strip() if company_tag else "Unknown company"
-#                     link = link_tag.get_attribute("href") if link_tag else "#"
-
-#                     jobs.append({
-#                         "title": f"{title} at {company}",
-#                         "link": link,
-#                         "source": "LinkedIn"
-#                     })
-
-#             except Exception as e:
-#                 print(f"⚠️ Failed to scrape LinkedIn for '{keyword}': {e}")
-
-#         browser.close()
-#     return jobs
-# if __name__ == "__main__":
-#     keywords = ["hiring", "internship", "job opening", "software engineer"]
-#     jobs = scrape_linkedin(keywords)
-#     for job in jobs:
-#         print(f"🔹 {job['title']}\n🔗 {job['link']}\n") 

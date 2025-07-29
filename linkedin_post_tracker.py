@@ -105,3 +105,4 @@ if __name__ == "__main__":
         with open("linkedin_results.json", "w", encoding="utf-8") as f:
             json.dump(posts, f, ensure_ascii=False, indent=2)
         print("\n💾 Saved to linkedin_results.json")
+
