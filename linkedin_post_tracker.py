@@ -1,14 +1,16 @@
 from playwright.sync_api import sync_playwright
 import time
 import json
+import datetime
 
-def scrape_linkedin_feed(keywords):
+def scrape_linkedin_feed(keywords, require_hr_match=True):
     posts = []
+    seen_titles = set()
+
     with sync_playwright() as p:
         print("🌐 Launching browser...")
         browser = p.chromium.launch(headless=False, slow_mo=100)
 
-        # Load cookies from previously authenticated session
         try:
             context = browser.new_context(storage_state="linkedin_state.json")
         except Exception as e:
@@ -19,9 +21,12 @@ def scrape_linkedin_feed(keywords):
 
         try:
             print("🔗 Navigating to LinkedIn feed...")
-            page.goto("https://www.linkedin.com/feed/", timeout=60000)
+            timestamp = int(time.time())
+            page.goto(f"https://www.linkedin.com/feed/?_={timestamp}", timeout=60000)
 
-            # Wait for feed items or login redirect
+            # Clear cached data
+            page.evaluate("localStorage.clear(); sessionStorage.clear();")
+
             try:
                 page.wait_for_selector("div.feed-shared-update-v2", timeout=30000)
                 print("✅ Feed loaded successfully.")
@@ -32,65 +37,88 @@ def scrape_linkedin_feed(keywords):
                     return posts
                 print("⚠️ Feed items not found. Continuing anyway...")
 
-            # Scroll to load more content
-            for _ in range(3):
-                page.mouse.wheel(0, 2000)
+            all_scraped_raw = []
+
+            for scroll_round in range(3):
+                print(f"🔄 Scrolling round {scroll_round + 1}")
+                page.mouse.wheel(0, 3000)
+                time.sleep(3)
+                page.reload()
                 time.sleep(2)
 
-            # Grab top ~45 posts (3 scrolls)
-            feed_items = page.query_selector_all("div.feed-shared-update-v2, div.update-components-text")
-            print(f"🔍 Found {len(feed_items)} feed items.")
+                feed_items = page.query_selector_all("div.feed-shared-update-v2")
+                print(f"🔍 Round {scroll_round + 1}: Found {len(feed_items)} feed items.")
 
-            for item in feed_items:
-                try:
-                    text = item.inner_text().lower().strip()
-                    if not text:
-                        continue
+                for item in feed_items:
+                    try:
+                        text = item.inner_text().lower().strip()
+                        if not text:
+                            continue
 
-                    # Post link
-                    link = "#"
-                    link_element = item.query_selector("a.app-aware-link")
-                    if link_element:
-                        raw_link = link_element.get_attribute("href")
-                        if raw_link:
-                            link = raw_link.split("?")[0]
+                        link = "#"
+                        link_element = item.query_selector("a.app-aware-link")
+                        if link_element:
+                            raw_link = link_element.get_attribute("href")
+                            if raw_link:
+                                link = raw_link.split("?")[0]
 
-                    # Poster info
-                    poster = item.query_selector("span.feed-shared-actor__description, span.update-components-actor__description")
-                    poster_text = poster.inner_text().lower().strip() if poster else ""
+                        poster = item.query_selector("span.feed-shared-actor__description, span.update-components-actor__description")
+                        poster_text = poster.inner_text().lower().strip() if poster else ""
 
-                    # Keyword & HR filter
-                    keyword_match = any(k.lower() in text for k in keywords)
-                    poster_match = any(x in poster_text for x in ["hr", "recruiter", "talent", "hiring"])
+                        # Debug output
+                        print(f"\n📝 Text: {text[:100]}...")
+                        print(f"👤 Poster: {poster_text}")
 
-                    if keyword_match and poster_match:
-                        title = ' '.join(text.split()[:20])
-                        title = title[:80].replace("\n", " ").strip()
-                        if len(title) >= 80:
-                            title += "..."
+                        keyword_match = any(k.lower() in text for k in keywords)
+                        poster_match = any(x in poster_text for x in ["hr", "recruiter", "talent", "hiring"])
 
-                        posts.append({
-                            "title": title,
-                            "link": link,
-                            "source": "LinkedIn Post",
-                            "poster": poster_text[:50]
+                        # Save raw data
+                        all_scraped_raw.append({
+                            "text": text,
+                            "poster": poster_text,
+                            "link": link
                         })
-                except Exception as e:
-                    print(f"⚠️ Error parsing post: {e}")
-                    continue
+
+                        if keyword_match and (poster_match if require_hr_match else True):
+                            title = ' '.join(text.split()[:20])
+                            title = title[:80].replace("\n", " ").strip()
+                            if len(title) >= 80:
+                                title += "..."
+
+                            if title not in seen_titles:
+                                seen_titles.add(title)
+                                posts.append({
+                                    "title": title,
+                                    "link": link,
+                                    "source": "LinkedIn Post",
+                                    "poster": poster_text[:50]
+                                })
+                    except Exception as e:
+                        print(f"⚠️ Error parsing post: {e}")
+                        continue
 
         except Exception as e:
             print(f"❌ Critical error: {e}")
-
         finally:
             browser.close()
+
+    # Save raw scraped data
+    with open("linkedin_all_scraped_raw.json", "w", encoding="utf-8") as f:
+        json.dump(all_scraped_raw, f, ensure_ascii=False, indent=2)
 
     return posts
 
 if __name__ == "__main__":
-    keywords = ["hiring", "internship", "job opening", "software engineer", "opportunity"]
+    keywords = [
+        "hiring", "we are hiring", "job opening", "open position", "recruiting", 
+        "vacancy", "opportunity", "intern", "internship", "software engineer", 
+        "full-time", "fresher", "graduate", "walk-in"
+    ]
+
     print("🚀 Starting LinkedIn feed scrape...")
-    posts = scrape_linkedin_feed(keywords)
+
+    # Set to False to ignore HR-only filter
+    posts = scrape_linkedin_feed(keywords, require_hr_match=False)
 
     if not posts:
         print("📭 No relevant posts found.")
@@ -101,8 +129,6 @@ if __name__ == "__main__":
             print(f"   👤 {post['poster']}")
             print(f"   🔗 {post['link']}")
 
-        # Save to file
         with open("linkedin_results.json", "w", encoding="utf-8") as f:
             json.dump(posts, f, ensure_ascii=False, indent=2)
         print("\n💾 Saved to linkedin_results.json")
-
